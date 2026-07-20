@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>3D 旋转苹果</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1a1a1a;
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #e0e0e0;
+  }
+  #app {
+    position: fixed;
+    inset: 0;
+  }
+  #canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #2a2a2a;
+  }
+  .panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: #000000;
+    border: 1px solid #4a4a4a;
+    padding: 16px 20px;
+    color: #ffffff;
+    user-select: none;
+  }
+  .panel h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+    color: #ffffff;
+    border-bottom: 1px solid #4a4a4a;
+    padding-bottom: 6px;
+  }
+  .panel .row {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+    font-size: 13px;
+    color: #b0b0b0;
+  }
+  .panel label { width: 90px; }
+  .panel input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 140px;
+    height: 4px;
+    background: #4a4a4a;
+    outline: none;
+    margin: 0 8px;
+  }
+  .panel input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    border-radius: 0;
+    cursor: pointer;
+  }
+  .panel input[type="range"]::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+  }
+  .panel .value {
+    width: 40px;
+    text-align: right;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+  }
+  .panel .btn {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: #2a2a2a;
+    border: 1px solid #6a6a6a;
+    color: #ffffff;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  .panel .btn:hover {
+    background: #4a4a4a;
+  }
+  .panel .btn:active {
+    background: #ffffff;
+    color: #000000;
+  }
+  .info {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: #6a6a6a;
+    letter-spacing: 1px;
+  }
+  .corner {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    font-size: 11px;
+    color: #6a6a6a;
+    text-align: right;
+    line-height: 1.6;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="canvas"></canvas>
+
+  <div class="panel">
+    <h1>APPLE CONTROL</h1>
+    <div class="row">
+      <label>旋转速度</label>
+      <input type="range" id="speed" min="0" max="10" step="0.1" value="2">
+      <span class="value" id="speedVal">2.0</span>
+    </div>
+    <div class="row">
+      <label>倾斜角度</label>
+      <input type="range" id="tilt" min="-45" max="45" step="1" value="15">
+      <span class="value" id="tiltVal">15</span>
+    </div>
+    <div class="row">
+      <label>缩放</label>
+      <input type="range" id="scale" min="0.5" max="3" step="0.05" value="1.2">
+      <span class="value" id="scaleVal">1.20</span>
+    </div>
+    <div class="row">
+      <label>灯光强度</label>
+      <input type="range" id="light" min="0" max="3" step="0.05" value="1.2">
+      <span class="value" id="lightVal">1.20</span>
+    </div>
+    <button class="btn" id="toggle">暂停旋转</button>
+  </div>
+
+  <div class="corner">
+    ROTATING<br>APPLE 3D
+  </div>
+
+  <div class="info">DRAG TO ROTATE · SCROLL TO ZOOM</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2a2a2a);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.5, 7);
+camera.lookAt(0, 0, 0);
+
+// 灯光
+const ambient = new THREE.AmbientLight(0x808080, 0.6);
+scene.add(ambient);
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+keyLight.position.set(5, 8, 6);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.near = 0.5;
+keyLight.shadow.camera.far = 30;
+keyLight.shadow.camera.left = -5;
+keyLight.shadow.camera.right = 5;
+keyLight.shadow.camera.top = 5;
+keyLight.shadow.camera.bottom = -5;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x404040, 0.6);
+fillLight.position.set(-5, 3, -4);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xc0c0c0, 0.5);
+rimLight.position.set(0, -3, -6);
+scene.add(rimLight);
+
+// 创建苹果
+function createApple() {
+  const apple = new THREE.Group();
+
+  // 苹果主体 - 使用 LatheGeometry 创建类似苹果的形状
+  const points = [];
+  const segments = 32;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const angle = t * Math.PI;
+    // 苹果形状：上下稍微凹陷
+    let r = Math.sin(angle);
+    // 上部略微收窄
+    const yFactor = Math.cos(angle);
+    // 中间膨胀
+    r = r * (1 + 0.15 * Math.sin(angle * 2));
+    // 顶部和底部稍微凹陷
+    let y = yFactor * 1.0;
+    if (t < 0.08) {
+      y -= 0.15 * (1 - t / 0.08);
+    }
+    if (t > 0.92) {
+      y += 0.15 * ((t - 0.92) / 0.08);
+    }
+    points.push(new THREE.Vector2(Math.max(0.001, r), y));
+  }
+
+  const appleGeometry = new THREE.LatheGeometry(points, 96);
+  // 对顶点做不规则扰动，打破旋转对称性，旋转时才能看出转动
+  const pos = appleGeometry.attributes.position;
+  const v = new THREE.Vector3();
+  // 使用伪随机种子保证每次形状一致
+  function hash(x, y, z) {
+    let n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
+    return n - Math.floor(n);
+  }
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    // 跳过顶部和底部极点附近，避免凹陷处破裂
+    const len = Math.sqrt(v.x * v.x + v.z * v.z);
+    if (len > 0.05) {
+      // 多重正弦叠加产生不规则起伏
+      const n1 = Math.sin(v.x * 4.0 + v.y * 3.0) * 0.5;
+      const n2 = Math.sin(v.z * 5.0 - v.y * 2.0) * 0.5;
+      const n3 = Math.sin((v.x + v.z) * 6.0) * 0.3;
+      const noise = (n1 + n2 + n3) / 3.0; // 约 -0.5 ~ 0.5
+      // 顶部、底部衰减，避免破坏凹陷
+      const yFactor = Math.max(0, 1 - Math.abs(v.y) * 0.9);
+      const offset = noise * 0.08 * yFactor;
+      const len2 = Math.max(0.001, len);
+      v.x = v.x + (v.x / len2) * offset;
+      v.z = v.z + (v.z / len2) * offset;
+      pos.setXYZ(i, v.x, v.y, v.z);
+    }
+  }
+  appleGeometry.computeVertexNormals();
+  const appleMaterial = new THREE.MeshStandardMaterial({
+    color: 0xc81e1e,
+    roughness: 0.32,
+    metalness: 0.08
+  });
+  const appleBody = new THREE.Mesh(appleGeometry, appleMaterial);
+  appleBody.scale.set(1.3, 1.3, 1.3);
+  appleBody.castShadow = true;
+  appleBody.receiveShadow = true;
+  apple.add(appleBody);
+
+  // 苹果柄
+  const stemGeometry = new THREE.CylinderGeometry(0.04, 0.06, 0.5, 16);
+  const stemMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0a0a0a,
+    roughness: 0.9,
+    metalness: 0.05
+  });
+  const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+  stem.position.set(0, 1.45, 0);
+  stem.rotation.z = 0.15;
+  stem.castShadow = true;
+  apple.add(stem);
+
+  // 叶子
+  const leafShape = new THREE.Shape();
+  leafShape.moveTo(0, 0);
+  leafShape.bezierCurveTo(0.1, 0.15, 0.4, 0.25, 0.5, 0.05);
+  leafShape.bezierCurveTo(0.4, -0.1, 0.15, -0.05, 0, 0);
+  const leafGeometry = new THREE.ShapeGeometry(leafShape, 24);
+  const leafMaterial = new THREE.MeshStandardMaterial({
+    color: 0x404040,
+    roughness: 0.6,
+    metalness: 0.1,
+    side: THREE.DoubleSide
+  });
+  const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+  leaf.position.set(0.05, 1.55, 0.05);
+  leaf.rotation.set(0.3, 0.5, 0.2);
+  leaf.castShadow = true;
+  apple.add(leaf);
+
+  return apple;
+}
+
+const apple = createApple();
+scene.add(apple);
+
+// 地面阴影
+const groundGeometry = new THREE.CircleGeometry(8, 64);
+const groundMaterial = new THREE.MeshStandardMaterial({
+  color: 0x1a1a1a,
+  roughness: 0.9,
+  metalness: 0.0
+});
+const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -1.8;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// 控制参数
+const params = {
+  speed: 2.0,
+  tilt: 15,
+  scale: 1.2,
+  light: 1.2,
+  rotating: true
+};
+
+// UI 绑定
+const speedInput = document.getElementById('speed');
+const tiltInput = document.getElementById('tilt');
+const scaleInput = document.getElementById('scale');
+const lightInput = document.getElementById('light');
+const toggleBtn = document.getElementById('toggle');
+
+speedInput.addEventListener('input', () => {
+  params.speed = parseFloat(speedInput.value);
+  document.getElementById('speedVal').textContent = params.speed.toFixed(1);
+});
+tiltInput.addEventListener('input', () => {
+  params.tilt = parseFloat(tiltInput.value);
+  document.getElementById('tiltVal').textContent = params.tilt;
+});
+scaleInput.addEventListener('input', () => {
+  params.scale = parseFloat(scaleInput.value);
+  document.getElementById('scaleVal').textContent = params.scale.toFixed(2);
+});
+lightInput.addEventListener('input', () => {
+  params.light = parseFloat(lightInput.value);
+  document.getElementById('lightVal').textContent = params.light.toFixed(2);
+  keyLight.intensity = params.light;
+  ambient.intensity = params.light * 0.5;
+});
+toggleBtn.addEventListener('click', () => {
+  params.rotating = !params.rotating;
+  toggleBtn.textContent = params.rotating ? '暂停旋转' : '开始旋转';
+});
+
+// 鼠标拖拽
+let isDragging = false;
+let prevX = 0, prevY = 0;
+let manualRotY = 0;
+let manualRotX = 0;
+
+canvas.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  prevX = e.clientX;
+  prevY = e.clientY;
+});
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - prevX;
+  const dy = e.clientY - prevY;
+  manualRotY += dx * 0.01;
+  manualRotX += dy * 0.01;
+  manualRotX = Math.max(-1, Math.min(1, manualRotX));
+  prevX = e.clientX;
+  prevY = e.clientY;
+});
+
+// 滚轮缩放
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  camera.position.z += e.deltaY * 0.005;
+  camera.position.z = Math.max(3, Math.min(15, camera.position.z));
+}, { passive: false });
+
+// 窗口缩放
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// 动画循环
+let autoY = 0;
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (params.rotating) {
+    autoY += params.speed * 0.01;
+  }
+
+  apple.rotation.y = autoY + manualRotY;
+  apple.rotation.x = THREE.MathUtils.degToRad(params.tilt) + manualRotX;
+  apple.scale.setScalar(params.scale);
+
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
